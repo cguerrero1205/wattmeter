@@ -1,0 +1,28 @@
+# --- CCS C Compiler (PIC) ---
+*.hex
+*.cof
+*.cod
+*.err
+*.esym
+*.lst
+*.sym
+*.sta
+*.tre
+*.xsym
+*.ccspjt
+*.mcp
+*.mcw
+*.o
+*.osym
+
+# --- MATLAB ---
+*.asv
+*.m~
+*.mex*
+slprj/
+Grafica.xlsx
+
+# --- Sistema ---
+Thumbs.db
+desktop.ini
+.DS_Store

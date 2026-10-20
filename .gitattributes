@@ -1,0 +1,3 @@
+# Archivos binarios de MATLAB (GUIDE)
+*.fig binary
+*.mat binary

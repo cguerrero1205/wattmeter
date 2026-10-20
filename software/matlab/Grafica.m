@@ -97,6 +97,7 @@ try                                             %Verifica si existe o no el puer
     set(handles.cb2,'Visible', 'on');               %Muestra el CheckBox para autorrango de Vac Pico   
     set(handles.lcd,'Visible', 'on');               %Muestra el CheckBox para usar la LCD en el modulo del PIC
     set(handles.lcd,'Value', [0]);                  %El valor inicial para la LCD es "DESACTIVADA"
+    fprintf(puerto,'%s','N');                       %Sincroniza el PIC con la casilla: LCD desactivada
     set(handles.estado,'String', 'Conectado', 'ForegroundColor', [0 1 0]);  %Cambia el texto y color del static text del estado de la conexion
     set(handles.text1,'String', ' ');               %Limpia el static text de Vac RMS
     set(handles.text2,'String', ' ');               %Limpia el static text de Iac RMS
@@ -107,6 +108,7 @@ try                                             %Verifica si existe o no el puer
     set(handles.text37,'String', ' ');              %Limpia el static text del Potencia Reactiva
     set(handles.text41,'String', ' ');              %Limpia el static text de Potencia Consumida en Khw    
     set(handles.text43,'String', ' ');              %Limpia el static text del tiempo que ha transcurrido mientras consume potencia
+    handles.graficando=false;                       %Aun no se esta graficando
     handles.CONECTADO=puerto;                       %Guarda todas las configuraciones de "puerto" en una variable no volatil
     guidata(hObject,handles);
 catch                                           %Si da error al abrir ejecuta la linea siguiente
@@ -115,6 +117,8 @@ end                                             %Si no hubo error al abrir el pu
 
 
 function pb2_Callback(hObject, eventdata, handles)  %Funcion para desconectar o cerrar el puerto COM
+handles.graficando=false;                       %Detiene el ciclo de graficacion (ver pb3_Callback)
+guidata(hObject,handles);
 puerto=handles.CONECTADO;                       %Toma la configuracion del puerto de la variable "CONECTADO" 
 fprintf(puerto,'%s','D');                       %Envia por CDC el caracter "D" (revisar codigo de PIC CCS)
 fclose(puerto);                                 %Cierra el puerto COM
@@ -144,7 +148,9 @@ clear all                                       %Limpia todas las variables
 
 function pb3_Callback(hObject, eventdata, handles)  %Funcion que grafica los periodos
 puerto=handles.CONECTADO;
-handles.estado=1;                       
+handles.graficando=true;                        %Bandera que se pone en false al presionar "DESCONECTAR"
+guidata(hObject,handles);
+set(handles.pb3,'Visible', 'off');              %Oculta "GRAFICAR" para no iniciar un segundo ciclo
 set(handles.text1,'String', ' ');               %Limpia el static text de Vac RMS
 set(handles.text2,'String', ' ');               %Limpia el static text de Iac RMS
 set(handles.text30,'String', ' ');              %Limpia el static text de Preal
@@ -162,7 +168,7 @@ data2 = zeros(1, 128);
 temp1 = zeros(1, 512);
 temp2 = zeros(1, 512);
 ciclo = 0;
-while handles.estado                       %Guarda todas las configuraciones de "puerto" en una variable no volatil
+while true                                      %Grafica hasta que se presione "DESCONECTAR" o se cierre la ventana
     tic;                                            %Inicia el cronometro
     muestras = 128;                                 %Indica que son 128 muestras por periodo
     fprintf(puerto,'%s','C');                       %Envia por CDC el caracter "E" (revisar codigo de PIC CCS)
@@ -173,7 +179,7 @@ while handles.estado                       %Guarda todas las configuraciones de 
         data1(n)=data(2*n-1);                       %Envia de forma impar los de Vac Pico
         data2(n)=data(2*n);                         %En forma par los de Iac Pico
     end                                             %Finaliza separacion de datos
-    data2 = data2*(-1)
+    data2 = data2*(-1);
     %Inicia proceso de cuantificacion y graficacion
      %Inicia con la grafica de Vac Pico
         axes(handles.graf1);                            %Selecciona la grafica de Vac Pico
@@ -227,7 +233,14 @@ while handles.estado                       %Guarda todas las configuraciones de 
     set(handles.text37, 'String', Prms-Preal);                  %Muestra el valor de la Potencia Reactiva (VAR) en el static text correspondiente
     set(handles.text44, 'String', 0.00);                      %Muestra el valor del Factor de Potencia en el static text correspondiente
     set(handles.text46, 'String', 0.00);                  %Muestra el valor de la Potencia Reactiva (VAR) en el static text correspondiente
-    drawnow;                                                     %Dibuja las graficas (SI SE DESEARA GRAFICAR VARIOS PERIODOS, SIN ESTE CODIGO SOLO GRAFICARIA EL ULTIMO)   
+    drawnow;                                                     %Dibuja las graficas y atiende los demas botones (SI SE DESEARA GRAFICAR VARIOS PERIODOS, SIN ESTE CODIGO SOLO GRAFICARIA EL ULTIMO)
+    if ~ishghandle(hObject)                                      %Se cerro la ventana
+        return
+    end
+    h = guidata(hObject);
+    if ~h.graficando                                             %Se presiono "DESCONECTAR" (el puerto ya fue cerrado)
+        return
+    end
     if Preal > 0
         Kwh = Kwh+(Preal*toc/3600000);
         Tiempo = Tiempo+(toc/60);

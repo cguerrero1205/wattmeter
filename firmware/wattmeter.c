@@ -17,7 +17,7 @@
 // ***************************** ABREVIACIONES *********************************
 #define LED_AZUL PIN_D5                         //LED RGB de anodo comun, pin del LED azul
 #define LED_VERDE PIN_D6                        //LED RGB de anodo comun, pin del LED verde (Indica estado conectado con la PC)
-#define LED_ROJO PIN_D7                         //LED RGB de anodo comun, pin del LED azul  (Indica estado NO conectado con la PC)
+#define LED_ROJO PIN_D7                         //LED RGB de anodo comun, pin del LED rojo  (Indica estado NO conectado con la PC)
 #define apaga output_low                        //Pone en 0 un pin del PIC
 #define enciende output_high                    //Pone en 1 un pin del PIC
 #define conmuta output_toggle                   //Conmutar el estado de un pin del PIC
@@ -104,6 +104,15 @@ float zero_crossing(signed int16* data){
 }
 
 
+// Muestra las mediciones en la LCD 20x4 (cada linea ocupa exactamente 20 caracteres)
+void mostrar_lcd(float Vrms, float Irms, float Preal, float factor){
+   lcd_gotoxy(1,1); printf(lcd_putc, "Vrms: %7.2f V     ", Vrms);
+   lcd_gotoxy(1,2); printf(lcd_putc, "Irms: %7.3f A     ", Irms);
+   lcd_gotoxy(1,3); printf(lcd_putc, "P:    %7.2f W     ", Preal);
+   lcd_gotoxy(1,4); printf(lcd_putc, "FP:   %7.3f       ", factor);
+}
+
+
 void procesar_resultados(void){
    int8 k,kk,ZC;
    float frac;
@@ -169,17 +178,17 @@ void procesar_resultados(void){
       Vrms  += (vv*vv);
       Preal += (ii*vv);
       //printf(usb_cdc_putc,"%3.0f,%3.0f\r\n", vv, ii); //Graficar
-      printf(usb_cdc_putc,"%06Ld%06Ld", V[k], I[k]); //MATLAB
+      if(UsarCDC) printf(usb_cdc_putc,"%06Ld%06Ld", V[k], I[k]); //MATLAB
    }
-   printf(usb_cdc_putc,"\r\n"); //MATLAB
+   if(UsarCDC) printf(usb_cdc_putc,"\r\n"); //MATLAB
    Irms=sqrt(Irms/SAMPLES_PERIOD);
    Preal=Preal/SAMPLES_PERIOD; 
    Vrms=sqrt(Vrms/SAMPLES_PERIOD);
    Prms = Vrms*Irms;  
-   factor = Preal/Prms;
+   factor = (Prms>0) ? Preal/Prms : 0;           //Evita division por cero
 
    if (Irms<0.1) { Irms=0.0; Prms=0.0; Preal=0.0; factor=0.0;}                
-   //printf(usb_cdc_putc,"Vrms: %2.3f, Irms: %2.3f, Prms: %2.3f, Preal: %2.3f, Factor: %2.3f\r\n", Vrms, Irms, Prms, Preal, factor);
+   if(UsarLCD) mostrar_lcd(Vrms, Irms, Preal, factor);
 }
 
 
@@ -218,37 +227,31 @@ void main(void){
    enable_interrupts(global);                   //Habilita las interrupciones globales
    stop_TMR0
    lcd_init();                                  //Inicia LCD
-   if((input(PIN_C0) == 1)&&(input(PIN_C1)==1)){UsarLCD = 1; UsarCDC = 1;} 
+   //Seleccion de modo con RC0/RC1:
+   //  RC0=1, RC1=1 -> LCD + USB  (la LCD se puede apagar desde MATLAB)
+   //  RC0=0, RC1=1 -> solo LCD   (medicion continua, sin PC)
+   //  otro caso    -> solo USB   (la LCD se activa desde MATLAB)
+   if((input(PIN_C0)==1)&&(input(PIN_C1)==1)){UsarLCD = 1; UsarCDC = 1;}
    else if((input(PIN_C0)==0)&&(input(PIN_C1)==1)){UsarLCD = 1; UsarCDC = 0;}
-      else if((input(PIN_C0)==1)&&(input(PIN_C1)==0)){UsarLCD = 0; UsarCDC = 1;}
-   if(UsarLCD == 1){
-      printf(lcd_putc, "\f\nVrms:     Irms: ");     //Muestra en la LCD
-      printf(lcd_putc, "\n       CONEXION");       //Muestra en la LCD
-      printf(lcd_putc, "\f  DESARROLLADO POR");    //Muestra en la LCD
-      printf(lcd_putc, "\n  CARLOS  GUERRERO");    //Muestra en la LCD
-      lcd_gotoxy(5,4);                             //Posicion en la LCD (X, Y)
-      printf(lcd_putc, "DESCONECTADO");            //Muestra en la LCD
-   }
-   else{
+   else {UsarLCD = 0; UsarCDC = 1;}
+   if(UsarCDC == 1){
       usb_cdc_init();                              //Inicia comunicacion CDC
       usb_init();                                  //Inicia USB
       usb_task();                                  //Inicia actividades USB
       printf(lcd_putc, "\f\n      ESPERANDO");     //Muestra en la LCD
       printf(lcd_putc, "\n       CONEXION");       //Muestra en la LCD
       usb_wait_for_enumeration();                  //Esperanda que el PIC sea reconocido por la PC (El driver debe estar instalado)
-      printf(lcd_putc, "\f  DESARROLLADO POR");    //Muestra en la LCD
-      printf(lcd_putc, "\n  CARLOS  GUERRERO");    //Muestra en la LCD
+   }
+   printf(lcd_putc, "\f  DESARROLLADO POR");       //Muestra en la LCD
+   printf(lcd_putc, "\n  CARLOS  GUERRERO");       //Muestra en la LCD
+   if(UsarCDC == 1){
       lcd_gotoxy(5,4);                             //Posicion en la LCD (X, Y)
       printf(lcd_putc, "DESCONECTADO");            //Muestra en la LCD
    }
-   UsarCDC = 1;
-   UsarLCD = 0;
+   else delay_ms(2000);                            //Modo solo LCD: deja ver el mensaje antes de medir
    output_high(LED_ROJO);
    output_low(LED_AZUL);
    while(true){
-      //if((input(PIN_C0)==1)&&(input(PIN_C1)==1)){UsarLCD = 1; UsarCDC = 1;} 
-         //else if((input(PIN_C0)==0)&&(input(PIN_C1)==1)){UsarLCD = 1; UsarCDC = 0;}
-            //else if((input(PIN_C0)==1)&&(input(PIN_C1)==0)){UsarLCD = 0; UsarCDC = 1;}
       if(UsarCDC == 1){
          while(!usb_cdc_connected()){}                //Ciclo infinito mientras que no sea abierto el puerto COM con la PC
          usb_task();                               //Reinicia actividades USB
@@ -258,6 +261,8 @@ void main(void){
                   dato=usb_cdc_getc();
                   if (dato == 'D') reset_cpu();
                   else if (dato == 'C') break;
+                  else if (dato == 'L') UsarLCD = 1;
+                  else if (dato == 'N') { UsarLCD = 0; printf(lcd_putc, "\f"); }
                }
             }
          }

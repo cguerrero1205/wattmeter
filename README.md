@@ -36,8 +36,22 @@ wattmeter/
 | Sensor de corriente AC| AN1 (RA1), offset en 2.5 V                 |
 | LCD 20x4              | D4–D7 → RB4–RB7, RS → RB1, E → RB2, RW → RE1 |
 | LED RGB (ánodo común) | Azul RD5, Verde RD6, Rojo RD7              |
-| Selección de modo     | RC0 / RC1 (LCD y/o USB)                    |
+| Selección de modo     | RC0 / RC1 (ver tabla de modos)             |
 | Depuración            | RD1 conmuta en cada interrupción de TMR0   |
+
+### Modos de operación (se leen al encender)
+
+| RC0 | RC1 | Modo                                                         |
+|-----|-----|--------------------------------------------------------------|
+| 1   | 1   | LCD + USB: la LCD muestra datos hasta que la GUI la apague   |
+| 0   | 1   | Solo LCD: mide de forma continua sin PC                      |
+| 1   | 0   | Solo USB: la LCD se activa desde la casilla de la GUI        |
+| 0   | 0   | Igual que "Solo USB"                                         |
+
+> RC0 y RC1 no tienen pull-ups internos: deben llevar resistencias o
+> jumpers a un nivel definido para que el modo sea predecible.
+
+En la LCD se muestran Vrms, Irms, potencia real y factor de potencia.
 
 ## Firmware
 
@@ -69,7 +83,7 @@ Puerto COM virtual, 19200 baudios, 8N1, terminador `LF`.
 |--------------------|----------------------------------------------|
 | `C`                | Capturar 30 periodos y enviar un periodo procesado |
 | `D`                | Desconectar (reinicia el PIC)                |
-| `L` / `N`          | Activar / desactivar LCD (enviado por la GUI; el firmware actual no lo procesa) |
+| `L` / `N`          | Activar / desactivar la LCD (la GUI envía `N` al conectar) |
 
 Respuesta a `C`: 128 pares de enteros de 6 dígitos con signo
 (`%06Ld%06Ld`) seguidos de `\r\n`:
